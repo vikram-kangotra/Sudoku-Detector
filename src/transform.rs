@@ -1,5 +1,5 @@
 use opencv::types::VectorOfPoint2f;
-use opencv::{core::*, types::VectorOfPoint};
+use opencv::core::*;
 use opencv::imgproc::*;
 
 /// This function takes a point from each row and
@@ -107,19 +107,19 @@ pub fn four_point_transform(image: &Mat, pts: &Mat) -> Mat {
 
     let width_a = distance(&br, &bl);
     let width_b = distance(&tr, &tl);
-    let max_width = width_a.max(width_b);
+    let max_width = width_a.max(width_b) - 1.0;
 
     let height_a = distance(&tr, &br);
     let height_b = distance(&tl, &bl);
-    let max_height = height_a.max(height_b);
+    let max_height = height_a.max(height_b) - 1.0;
 
     // construct the destination points which will be used to
     // map the screen to a top-down, "birds eye" view
     let dst = Mat::from_slice_2d(&[
         [0.0, 0.0],
-        [max_width as f32 - 1.0, 0.0],
-        [max_width as f32 - 1.0, max_height as f32 - 1.0],
-        [0.0, max_height as f32 - 1.0],
+        [max_width, 0.0],
+        [max_width, max_height],
+        [0.0, max_height],
     ]).unwrap();
 
     let m = get_perspective_transform(&rect, &dst, DECOMP_LU).unwrap();
