@@ -7,11 +7,7 @@ use opencv::highgui::{imshow, wait_key};
 
 use crate::transform::four_point_transform;
 
-fn main() {
-
-    let mut img = imread("res/sudoku0.jpg", opencv::imgcodecs::IMREAD_COLOR)
-        .expect("Could not read image");
-
+fn find_puzzle(img: &Mat) -> Option<(Mat, Mat)> {
     let mut gray = Mat::default();
     cvt_color(&img, &mut gray, COLOR_BGR2GRAY, 0)
         .expect("Could not convert image to grayscale");
@@ -36,7 +32,7 @@ fn main() {
     let mut inverted = Mat::default();
     bitwise_not(&thresh, &mut inverted, &opencv::core::no_array())
         .expect("Could not invert image");
-    
+
     let mut contours = opencv::types::VectorOfVectorOfPoint::new();
     find_contours(&inverted, 
                   &mut contours,
@@ -65,6 +61,16 @@ fn main() {
 
     let puzzle = four_point_transform(&img, &puzzle_cnt);
     let warped = four_point_transform(&gray, &puzzle_cnt);
+
+    return Some((puzzle, warped));
+}
+
+fn main() {
+
+    let img = imread("res/sudoku0.jpg", opencv::imgcodecs::IMREAD_COLOR)
+        .expect("Could not read image");
+
+    let (puzzle, warped) = find_puzzle(&img).expect("Could not find puzzle");
 
     imshow("Display window", &puzzle).expect("Could not show image");
     wait_key(0).expect("Could not wait for key");
