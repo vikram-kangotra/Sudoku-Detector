@@ -46,15 +46,16 @@ fn main() {
         .expect("Could not find contours");
 
     let mut puzzle_cnt = Mat::default();
+    let mut max_peri = 0.0;
 
     for c in &contours {
         let peri = arc_length(&c, true).expect("Could not calculate arc length");
         let mut approx = Mat::default();
         approx_poly_dp(&c, &mut approx, 0.02 * peri, true)
             .expect("Could not approximate polygon");
-        if approx.rows() == 4 {
+        if approx.rows() == 4 && peri > max_peri {
             puzzle_cnt = approx;
-            break;
+            max_peri = peri;
         }
     }
 
@@ -65,6 +66,6 @@ fn main() {
     let puzzle = four_point_transform(&img, &puzzle_cnt);
     let warped = four_point_transform(&gray, &puzzle_cnt);
 
-    imshow("Display window", &puzzle).expect("Could not show image");
+    imshow("Display window", &warped).expect("Could not show image");
     wait_key(0).expect("Could not wait for key");
 }
