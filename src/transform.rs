@@ -2,8 +2,9 @@ use opencv::types::VectorOfPoint2f;
 use opencv::{core::*, types::VectorOfPoint};
 use opencv::imgproc::*;
 
-// VectorOfPoint is a vector of CV_32SC2 points
-// CV_32SC2 is a 2D point with signed integer coordinates
+/// This function takes a point from each row and
+/// sums the x and y values and returns them as a
+/// vector of floats.
 pub fn sum_rows(mat: &VectorOfPoint2f) -> Vec<f32>{
     let mut sum = vec![0.0; mat.len() as usize];
     for i in 0..mat.len() {
@@ -13,8 +14,9 @@ pub fn sum_rows(mat: &VectorOfPoint2f) -> Vec<f32>{
     sum
 }
 
-// VectorOfPoint is a vector of CV_32SC2 points
-// CV_32SC2 is a 2D point with signed integer coordinates
+/// This function takes a point from each row and
+/// subtracts the x and y values and returns them as a
+/// vector of floats.
 pub fn diff_rows(mat: &VectorOfPoint2f) -> Vec<f32>{
     let mut diff = vec![0.0; mat.len() as usize];
     for i in 0..mat.len() {
@@ -24,6 +26,8 @@ pub fn diff_rows(mat: &VectorOfPoint2f) -> Vec<f32>{
     diff
 }
 
+/// This function retuens the index of the minimum value
+/// in a slice of floats.
 pub fn min_index(arr: &[f32]) -> usize {
     arr.iter()
         .enumerate()
@@ -32,6 +36,8 @@ pub fn min_index(arr: &[f32]) -> usize {
         .0
 }
 
+/// This function retuens the index of the maximum value
+/// in a slice of floats.
 pub fn max_index(arr: &[f32]) -> usize {
     arr.iter()
         .enumerate()
@@ -40,6 +46,9 @@ pub fn max_index(arr: &[f32]) -> usize {
         .0
 }
 
+/// This function takes a vector of points and returns
+/// a vector of points with the points sorted in a
+/// clockwise order.
 pub fn order_points(pts: &VectorOfPoint2f) -> VectorOfPoint2f {
 
     let mut rect = VectorOfPoint2f::new();
@@ -65,12 +74,14 @@ pub fn order_points(pts: &VectorOfPoint2f) -> VectorOfPoint2f {
     rect
 }
 
+/// This function returns the distance between two points.
 pub fn distance(p1: &Point2f, p2: &Point2f) -> f32 {
     let x = p1.x - p2.x;
     let y = p1.y - p2.y;
     (x * x + y * y).sqrt()
 }
 
+/// This function converts a matrix to a vector of points.
 pub fn mat_to_vector_of_point(mat: &Mat) -> VectorOfPoint2f {
     let mut vec = VectorOfPoint2f::new();
     for i in 0..mat.rows() {
@@ -80,8 +91,11 @@ pub fn mat_to_vector_of_point(mat: &Mat) -> VectorOfPoint2f {
     vec
 }
 
+/// This function applies a perspective transform to an image.
 pub fn four_point_transform(image: &Mat, pts: &Mat) -> Mat {
 
+    // converted to VectorOfPoint2f for easier manipulation
+    // VectorOfPoint2f is a vector of CV_32FC2 points
     let pts = mat_to_vector_of_point(pts);
 
     let rect = order_points(&pts);
@@ -99,6 +113,8 @@ pub fn four_point_transform(image: &Mat, pts: &Mat) -> Mat {
     let height_b = distance(&tl, &bl);
     let max_height = height_a.max(height_b);
 
+    // construct the destination points which will be used to
+    // map the screen to a top-down, "birds eye" view
     let dst = Mat::from_slice_2d(&[
         [0.0, 0.0],
         [max_width as f32 - 1.0, 0.0],
