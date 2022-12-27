@@ -1,10 +1,11 @@
+use opencv::types::VectorOfPoint2f;
 use opencv::{core::*, types::VectorOfPoint};
 use opencv::imgproc::*;
 
 // VectorOfPoint is a vector of CV_32SC2 points
 // CV_32SC2 is a 2D point with signed integer coordinates
-pub fn sum_rows(mat: &VectorOfPoint) -> Vec<i32>{
-    let mut sum = vec![0; mat.len() as usize];
+pub fn sum_rows(mat: &VectorOfPoint2f) -> Vec<f32>{
+    let mut sum = vec![0.0; mat.len() as usize];
     for i in 0..mat.len() {
         let p = mat.get(i as usize).unwrap();
         sum[i as usize] = p.x + p.y;
@@ -14,8 +15,8 @@ pub fn sum_rows(mat: &VectorOfPoint) -> Vec<i32>{
 
 // VectorOfPoint is a vector of CV_32SC2 points
 // CV_32SC2 is a 2D point with signed integer coordinates
-pub fn diff_rows(mat: &VectorOfPoint) -> Vec<i32>{
-    let mut diff = vec![0; mat.len() as usize];
+pub fn diff_rows(mat: &VectorOfPoint2f) -> Vec<f32>{
+    let mut diff = vec![0.0; mat.len() as usize];
     for i in 0..mat.len() {
         let p = mat.get(i as usize).unwrap();
         diff[i as usize] = p.x - p.y;
@@ -23,30 +24,29 @@ pub fn diff_rows(mat: &VectorOfPoint) -> Vec<i32>{
     diff
 }
 
-pub fn min_index(arr: &[i32]) -> usize {
+pub fn min_index(arr: &[f32]) -> usize {
     arr.iter()
         .enumerate()
-        .min_by_key(|&(_, v)| v)
-        .map(|(i, _)| i)
+        .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
         .unwrap()
+        .0
 }
 
-pub fn max_index(arr: &[i32]) -> usize {
+pub fn max_index(arr: &[f32]) -> usize {
     arr.iter()
         .enumerate()
-        .max_by_key(|&(_, v)| v)
-        .map(|(i, _)| i)
+        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
         .unwrap()
+        .0
 }
 
-pub fn order_points(pts: &VectorOfPoint) -> VectorOfPoint {
+pub fn order_points(pts: &VectorOfPoint2f) -> VectorOfPoint2f {
 
-    let mut rect = VectorOfPoint::new();
-    rect.push(Point::new(0, 0));
-    rect.push(Point::new(0, 0));
-    rect.push(Point::new(0, 0));
-    rect.push(Point::new(0, 0));
-
+    let mut rect = VectorOfPoint2f::new();
+    rect.push(Point2f::new(0.0, 0.0));
+    rect.push(Point2f::new(0.0, 0.0));
+    rect.push(Point2f::new(0.0, 0.0));
+    rect.push(Point2f::new(0.0, 0.0));
 
     let sum = sum_rows(pts);
 
@@ -65,17 +65,17 @@ pub fn order_points(pts: &VectorOfPoint) -> VectorOfPoint {
     rect
 }
 
-pub fn distance(p1: &Point, p2: &Point) -> f64 {
+pub fn distance(p1: &Point2f, p2: &Point2f) -> f32 {
     let x = p1.x - p2.x;
     let y = p1.y - p2.y;
-    ((x * x + y * y) as f64).sqrt()
+    (x * x + y * y).sqrt()
 }
 
-pub fn mat_to_vector_of_point(mat: &Mat) -> VectorOfPoint {
-    let mut vec = VectorOfPoint::new();
+pub fn mat_to_vector_of_point(mat: &Mat) -> VectorOfPoint2f {
+    let mut vec = VectorOfPoint2f::new();
     for i in 0..mat.rows() {
         let p = mat.at_2d::<Point>(i, 0).unwrap();
-        vec.push(Point::new(p.x, p.y));
+        vec.push(Point2f::new(p.x as f32, p.y as f32));
     }
     vec
 }
@@ -99,11 +99,12 @@ pub fn four_point_transform(image: &Mat, pts: &Mat) -> Mat {
     let height_b = distance(&tl, &bl);
     let max_height = height_a.max(height_b);
 
-    let mut dst = VectorOfPoint::new();
-    dst.push(Point::new(0, 0));
-    dst.push(Point::new(max_width as i32 - 1, 0));
-    dst.push(Point::new(max_width as i32 - 1, max_height as i32 - 1));
-    dst.push(Point::new(0, max_height as i32 - 1));
+    let dst = Mat::from_slice_2d(&[
+        [0.0, 0.0],
+        [max_width as f32 - 1.0, 0.0],
+        [max_width as f32 - 1.0, max_height as f32 - 1.0],
+        [0.0, max_height as f32 - 1.0],
+    ]).unwrap();
 
     let m = get_perspective_transform(&rect, &dst, DECOMP_LU).unwrap();
 
