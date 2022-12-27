@@ -9,7 +9,7 @@ use crate::transform::four_point_transform;
 
 fn main() {
 
-    let mut img = imread("res/sudoku.webp", opencv::imgcodecs::IMREAD_COLOR)
+    let mut img = imread("res/sudoku0.jpg", opencv::imgcodecs::IMREAD_COLOR)
         .expect("Could not read image");
 
     let mut gray = Mat::default();
@@ -66,6 +66,6 @@ fn main() {
     let puzzle = four_point_transform(&img, &puzzle_cnt);
     let warped = four_point_transform(&gray, &puzzle_cnt);
 
-    imshow("Display window", &warped).expect("Could not show image");
+    imshow("Display window", &puzzle).expect("Could not show image");
     wait_key(0).expect("Could not wait for key");
 }
