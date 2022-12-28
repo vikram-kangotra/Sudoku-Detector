@@ -133,5 +133,8 @@ pub fn four_point_transform(image: &Mat, pts: &Mat) -> Mat {
                      BORDER_CONSTANT, 
                      Scalar::all(0.0)).unwrap();
 
-    return warped;
+    let mut out_warped = Mat::default();
+    transpose(&warped, &mut out_warped).unwrap();
+
+    return out_warped;
 }
