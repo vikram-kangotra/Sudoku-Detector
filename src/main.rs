@@ -1,6 +1,9 @@
 mod transform;
 
 use opencv::core::*;
+use opencv::dnn::read_net_from_tensorflow;
+use opencv::dnn::Net;
+use opencv::prelude::NetTrait;
 use opencv::imgcodecs::imread;
 use opencv::imgproc::*;
 use opencv::highgui::{imshow, wait_key};
@@ -38,7 +41,7 @@ fn find_puzzle(img: &Mat) -> Option<(Mat, Mat)> {
                   &mut contours,
                   RETR_EXTERNAL, 
                   CHAIN_APPROX_SIMPLE, 
-                  opencv::core::Point::new(0, 0))
+                  Point::new(0, 0))
         .expect("Could not find contours");
 
     let mut puzzle_cnt = Mat::default();
@@ -62,15 +65,133 @@ fn find_puzzle(img: &Mat) -> Option<(Mat, Mat)> {
     let puzzle = four_point_transform(&img, &puzzle_cnt);
     let warped = four_point_transform(&gray, &puzzle_cnt);
 
-    return Some((puzzle, warped));
+    Some((puzzle, warped))
+}
+
+fn extract_digit(cell: &Mat) -> Option<Mat> {
+    let thresh = clear_border(cell);
+    return Some(thresh);
+}
+
+fn clear_border(img: &Mat) -> Mat {
+    let mut norm = Mat::default();
+    normalize(&img, 
+              &mut norm, 
+              0.0, 255.0, 
+              NORM_MINMAX, 
+              CV_8U, 
+              &no_array())
+        .expect("Could not normalize image");
+
+    let mut thresh = Mat::default();
+    threshold(&norm, 
+              &mut thresh, 
+              0.0, 
+              255.0, 
+              THRESH_BINARY_INV | THRESH_OTSU)
+        .expect("Could not threshold image");
+
+    let mut contours = opencv::types::VectorOfVectorOfPoint::new();
+    find_contours(&thresh, 
+                  &mut contours, 
+                  RETR_EXTERNAL,
+                  CHAIN_APPROX_SIMPLE, 
+                  Point::new(0, 0))
+        .expect("Could not find contours");
+
+  
+
+    let mut mask = Mat::ones_size(
+        img.size().expect("Could not get image size"), 
+        CV_8U)
+        .expect("Could not create mask")
+        .to_mat()
+        .expect("Could not convert mask to Mat");
+
+    for c in &contours {
+        let rect = bounding_rect(&c).expect("Could not get bounding rect");
+        let tl = rect.x;
+        let tr = rect.x + rect.width;
+        let bl = rect.y;
+        let br = rect.y + rect.height;
+        if tl == 0 || tr == img.cols() || bl == 0 || br == img.rows() {
+            fill_poly(&mut mask, &c, Scalar::all(0.0), LINE_8, 0, Point::new(0, 0))
+                .expect("Could not fill polygon");
+        }
+    }
+    
+    let mut masked = Mat::default();
+    bitwise_and(&thresh, &thresh, &mut masked, &mask)
+        .expect("Could not apply mask");
+
+    imshow("thresh", &masked).expect("Could not show image");
+    wait_key(0).expect("Could not wait for key");
+
+    return masked;
+}
+
+fn predict(model: &mut Net, cell: &Mat) -> u8 {
+    let mut out = Mat::default();
+    resize(&cell, &mut out, opencv::core::Size::new(28, 28), 0.0, 0.0, INTER_AREA)
+        .expect("Could not resize image");
+
+    return 0;
+}
+
+fn print_board(board: &[[u8; 9]; 9]) {
+    for row in board {
+        for col in row {
+            print!("{} ", col);
+        }
+        println!();
+    }
 }
 
 fn main() {
 
-    let img = imread("res/sudoku0.jpg", opencv::imgcodecs::IMREAD_COLOR)
+    let img = imread("res/img/sudoku0.jpg", opencv::imgcodecs::IMREAD_COLOR)
         .expect("Could not read image");
 
-    let (puzzle, warped) = find_puzzle(&img).expect("Could not find puzzle");
+    let mut out = Mat::default();
+    resize(&img, 
+           &mut out,
+           Size::new(600, 600),
+           0.0, 0.0,
+           INTER_AREA)
+        .expect("Could not resize image");
+
+
+    let (puzzle, warped) = find_puzzle(&out).expect("Could not find puzzle");
+
+    let mut board = [[0; 9]; 9];
+
+    let step_x = warped.cols() / 9;
+    let step_y = warped.rows() / 9;
+
+    let mut model = read_net_from_tensorflow("res/model/frozen_graph.pb", "")
+        .expect("Could not read model");
+
+    for y in 0..9 {
+        for x in 0..9 {
+            let start_x = x * step_x;
+            let start_y = y * step_y;
+
+            let mut cell = Mat::default();
+            let roi = Rect::new(start_x, start_y, step_x, step_y);
+            Mat::roi(&warped, roi)
+                .expect("Could not get ROI")
+                .copy_to(&mut cell)
+                .expect("Could not copy ROI to cell");
+
+            let digit = extract_digit(&cell);
+
+            if let Some(digit) = digit {
+                board[y as usize][x as usize] = predict(&mut model, &digit);
+            }
+        }
+    }
+
+    print_board(&board);
 
     imshow("Display window", &puzzle).expect("Could not show image");
     wait_key(0).expect("Could not wait for key");
