@@ -1,12 +1,15 @@
 mod transform;
 
 use opencv::core::*;
+use opencv::dnn::DNN_BACKEND_OPENCV;
+use opencv::dnn::DNN_TARGET_CPU;
+use opencv::dnn::prelude::*;
 use opencv::dnn::read_net_from_tensorflow;
 use opencv::dnn::Net;
-use opencv::prelude::NetTrait;
 use opencv::imgcodecs::imread;
 use opencv::imgproc::*;
 use opencv::highgui::{imshow, wait_key};
+use opencv::types::VectorOfVectorOfPoint;
 
 use crate::transform::four_point_transform;
 
@@ -70,6 +73,15 @@ fn find_puzzle(img: &Mat) -> Option<(Mat, Mat)> {
 
 fn extract_digit(cell: &Mat) -> Option<Mat> {
     let thresh = clear_border(cell);
+    let mut cnts = VectorOfVectorOfPoint::new();
+    let ret = find_contours(&thresh, 
+                  &mut cnts, 
+                  RETR_EXTERNAL, 
+                  CHAIN_APPROX_SIMPLE, 
+                  Point::new(0, 0));
+    if ret.is_err() || cnts.len() == 0 {
+        return None;
+    }
     return Some(thresh);
 }
 
@@ -91,7 +103,7 @@ fn clear_border(img: &Mat) -> Mat {
               THRESH_BINARY_INV | THRESH_OTSU)
         .expect("Could not threshold image");
 
-    let mut contours = opencv::types::VectorOfVectorOfPoint::new();
+    let mut contours = VectorOfVectorOfPoint::new();
     find_contours(&thresh, 
                   &mut contours, 
                   RETR_EXTERNAL,
@@ -100,7 +112,6 @@ fn clear_border(img: &Mat) -> Mat {
         .expect("Could not find contours");
 
   
-
     let mut mask = Mat::ones_size(
         img.size().expect("Could not get image size"), 
         CV_8U)
@@ -124,9 +135,6 @@ fn clear_border(img: &Mat) -> Mat {
     bitwise_and(&thresh, &thresh, &mut masked, &mask)
         .expect("Could not apply mask");
 
-    imshow("thresh", &masked).expect("Could not show image");
-    wait_key(0).expect("Could not wait for key");
-
     return masked;
 }
 
@@ -135,7 +143,7 @@ fn predict(model: &mut Net, cell: &Mat) -> u8 {
     resize(&cell, &mut out, opencv::core::Size::new(28, 28), 0.0, 0.0, INTER_AREA)
         .expect("Could not resize image");
 
-    return 0;
+    return 1;
 }
 
 fn print_board(board: &[[u8; 9]; 9]) {
@@ -170,6 +178,10 @@ fn main() {
 
     let mut model = read_net_from_tensorflow("res/model/frozen_graph.pb", "")
         .expect("Could not read model");
+    model.set_preferable_backend(DNN_BACKEND_OPENCV)
+        .expect("Could not set backend");
+    model.set_preferable_target(DNN_TARGET_CPU)
+        .expect("Could not set target");
 
     for y in 0..9 {
         for x in 0..9 {
@@ -184,10 +196,12 @@ fn main() {
                 .expect("Could not copy ROI to cell");
 
             let digit = extract_digit(&cell);
+            let val = match digit {
+                Some(digit) => predict(&mut model, &digit),
+                None => 0,
+            };
 
-            if let Some(digit) = digit {
-                board[y as usize][x as usize] = predict(&mut model, &digit);
-            }
+            board[y as usize][x as usize] = val;
         }
     }
 
