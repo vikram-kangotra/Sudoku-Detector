@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 opencv = "0.74.2"
+tract-tensorflow = "0.18.5"
