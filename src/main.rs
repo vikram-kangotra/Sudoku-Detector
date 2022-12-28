@@ -1,15 +1,11 @@
 mod transform;
 
 use opencv::core::*;
-use opencv::dnn::DNN_BACKEND_OPENCV;
-use opencv::dnn::DNN_TARGET_CPU;
-use opencv::dnn::prelude::*;
-use opencv::dnn::read_net_from_tensorflow;
-use opencv::dnn::Net;
 use opencv::imgcodecs::imread;
 use opencv::imgproc::*;
 use opencv::highgui::{imshow, wait_key};
 use opencv::types::VectorOfVectorOfPoint;
+use tract_tensorflow::prelude::*;
 
 use crate::transform::four_point_transform;
 
@@ -138,12 +134,36 @@ fn clear_border(img: &Mat) -> Mat {
     return masked;
 }
 
-fn predict(model: &mut Net, cell: &Mat) -> u8 {
+type Model = SimplePlan<TypedFact, Box<dyn TypedOp>, Graph<TypedFact, Box<dyn TypedOp>>>;
+
+fn predict(model: &Model, cell: &Mat) -> u8 {
     let mut out = Mat::default();
     resize(&cell, &mut out, opencv::core::Size::new(28, 28), 0.0, 0.0, INTER_AREA)
         .expect("Could not resize image");
 
-    return 1;
+    let mut data = Vec::new();
+    for i in 0..out.rows() {
+        for j in 0..out.cols() {
+            let pixel = out.at_2d::<u8>(i, j).expect("Could not get pixel");
+            data.push(*pixel as f32 / 255.0);
+        }
+    }
+
+    let input = tract_ndarray::arr1(&data).into_shape((1, 28, 28, 1))
+        .expect("Could not reshape data")
+        .into_tensor();
+
+    let result = model.run(tvec![input.into()]).expect("Could not run model");
+
+    let result = result[1].to_array_view::<f32>().expect("Could not get result");
+
+    let pred_digit = result.iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+        .map(|(i, _)| i as u8)
+        .unwrap();
+
+    return pred_digit;
 }
 
 fn print_board(board: &[[u8; 9]; 9]) {
@@ -176,12 +196,15 @@ fn main() {
     let step_x = warped.cols() / 9;
     let step_y = warped.rows() / 9;
 
-    let mut model = read_net_from_tensorflow("res/model/frozen_graph.pb", "")
-        .expect("Could not read model");
-    model.set_preferable_backend(DNN_BACKEND_OPENCV)
-        .expect("Could not set backend");
-    model.set_preferable_target(DNN_TARGET_CPU)
-        .expect("Could not set target");
+    let model = tensorflow()
+        .model_for_path("res/model/frozen_graph.pb")
+        .expect("Could not load model")
+        .with_input_fact(0, f32::fact([1, 28, 28, 1]).into())
+        .expect("Could not set input fact")
+        .into_optimized()
+        .expect("Could not optimize model")
+        .into_runnable()
+        .expect("Could not make model runnable");
 
     for y in 0..9 {
         for x in 0..9 {
@@ -197,7 +220,7 @@ fn main() {
 
             let digit = extract_digit(&cell);
             let val = match digit {
-                Some(digit) => predict(&mut model, &digit),
+                Some(digit) => predict(&model, &digit),
                 None => 0,
             };
 
