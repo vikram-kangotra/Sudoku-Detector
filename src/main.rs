@@ -9,13 +9,9 @@ use tract_tensorflow::prelude::*;
 
 use crate::transform::four_point_transform;
 
-fn find_puzzle(img: &Mat) -> Option<(Mat, Mat)> {
-    let mut gray = Mat::default();
-    cvt_color(&img, &mut gray, COLOR_BGR2GRAY, 0)
-        .expect("Could not convert image to grayscale");
-
+fn find_puzzle(img: &Mat) -> Option<Mat> {
     let mut blurred = Mat::default();
-    gaussian_blur(&gray, 
+    gaussian_blur(&img, 
                   &mut blurred, 
                   opencv::core::Size::new(5, 5), 
                   0.0, 0.0, 
@@ -62,9 +58,8 @@ fn find_puzzle(img: &Mat) -> Option<(Mat, Mat)> {
     }
 
     let puzzle = four_point_transform(&img, &puzzle_cnt);
-    let warped = four_point_transform(&gray, &puzzle_cnt);
 
-    Some((puzzle, warped))
+    Some(puzzle)
 }
 
 fn extract_digit(cell: &Mat) -> Option<Mat> {
@@ -177,7 +172,7 @@ fn print_board(board: &[[u8; 9]; 9]) {
 
 fn main() {
 
-    let img = imread("res/img/sudoku0.jpg", opencv::imgcodecs::IMREAD_COLOR)
+    let img = imread("res/img/sudoku0.jpg", opencv::imgcodecs::IMREAD_GRAYSCALE)
         .expect("Could not read image");
 
     let mut out = Mat::default();
@@ -189,7 +184,7 @@ fn main() {
         .expect("Could not resize image");
 
 
-    let (puzzle, warped) = find_puzzle(&out).expect("Could not find puzzle");
+    let warped = find_puzzle(&out).expect("Could not find puzzle");
 
     let mut board = [[0; 9]; 9];
 
@@ -230,6 +225,6 @@ fn main() {
 
     print_board(&board);
 
-    imshow("Display window", &puzzle).expect("Could not show image");
+    imshow("Display window", &warped).expect("Could not show image");
     wait_key(0).expect("Could not wait for key");
 }
