@@ -6,5 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-opencv = "0.78.0"
+opencv = {version = "0.78.0", default-features = false, features = ["imgcodecs", "imgproc", "highgui"]}
 tract-tensorflow = "0.18.5"
