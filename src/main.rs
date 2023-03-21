@@ -183,24 +183,22 @@ fn print_board(board: &[[u8; 9]; 9]) {
 
 fn main() {
 
-    let img = imread("res/img/sudoku0.jpg", opencv::imgcodecs::IMREAD_GRAYSCALE)
+    let mut img = imread("res/img/sudoku0.jpg", opencv::imgcodecs::IMREAD_GRAYSCALE)
         .expect("Could not read image");
 
-    let mut out = Mat::default();
-    resize(&img, 
-           &mut out,
+    let deskewed = find_puzzle(&img).expect("Could not find puzzle");
+    
+    resize(&deskewed, 
+           &mut img,
            Size::new(600, 600),
            0.0, 0.0,
            INTER_AREA)
         .expect("Could not resize image");
 
-
-    let warped = find_puzzle(&out).expect("Could not find puzzle");
-
     let mut board = [[0; 9]; 9];
 
-    let step_x = warped.cols() / 9;
-    let step_y = warped.rows() / 9;
+    let step_x = img.cols() / 9;
+    let step_y = img.rows() / 9;
 
     let model = tensorflow()
         .model_for_path("res/model/frozen_graph.pb")
@@ -219,7 +217,7 @@ fn main() {
 
             let mut cell = Mat::default();
             let roi = Rect::new(start_x, start_y, step_x, step_y);
-            Mat::roi(&warped, roi)
+            Mat::roi(&img, roi)
                 .expect("Could not get ROI")
                 .copy_to(&mut cell)
                 .expect("Could not copy ROI to cell");
@@ -236,6 +234,6 @@ fn main() {
 
     print_board(&board);
 
-    imshow("Display window", &warped).expect("Could not show image");
+    imshow("Display window", &img).expect("Could not show image");
     wait_key(0).expect("Could not wait for key");
 }
