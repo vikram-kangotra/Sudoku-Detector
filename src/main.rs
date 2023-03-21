@@ -9,11 +9,12 @@ use tract_tensorflow::prelude::*;
 
 use crate::transform::four_point_transform;
 
-fn find_puzzle(img: &Mat) -> Option<Mat> {
+fn preprocess_image(img: &Mat) -> Mat {
     let mut blurred = Mat::default();
+    let blur_radius = 9;
     gaussian_blur(&img, 
                   &mut blurred, 
-                  opencv::core::Size::new(5, 5), 
+                  opencv::core::Size::new(blur_radius, blur_radius), 
                   0.0, 0.0, 
                   opencv::core::BORDER_DEFAULT)
         .expect("Could not blur image");
@@ -26,12 +27,18 @@ fn find_puzzle(img: &Mat) -> Option<Mat> {
                        THRESH_BINARY, 
                        11, 2.0)
         .expect("Could not threshold image");
+    
+    thresh
+}
+
+fn find_puzzle(img: &Mat) -> Option<Mat> {
+    let processed =  preprocess_image(img);
 
     let mut inverted = Mat::default();
-    bitwise_not(&thresh, &mut inverted, &opencv::core::no_array())
+    bitwise_not(&processed, &mut inverted, &opencv::core::no_array())
         .expect("Could not invert image");
 
-    let mut contours = opencv::types::VectorOfVectorOfPoint::new();
+    let mut contours = VectorOfVectorOfPoint::new();
     find_contours(&inverted, 
                   &mut contours,
                   RETR_EXTERNAL, 
@@ -39,38 +46,42 @@ fn find_puzzle(img: &Mat) -> Option<Mat> {
                   Point::new(0, 0))
         .expect("Could not find contours");
 
-    let mut puzzle_cnt = Mat::default();
-    let mut max_peri = 0.0;
+    let mut corner_pts = Mat::default();
+    let mut max_perimeter = 0.0;
 
     for c in &contours {
-        let peri = arc_length(&c, true).expect("Could not calculate arc length");
+        let perimeter = arc_length(&c, true).expect("Could not calculate arc length");
         let mut approx = Mat::default();
-        approx_poly_dp(&c, &mut approx, 0.02 * peri, true)
+        approx_poly_dp(&c,
+                       &mut approx,
+                       0.02 * perimeter, 
+                       true)
             .expect("Could not approximate polygon");
-        if approx.rows() == 4 && peri > max_peri {
-            puzzle_cnt = approx;
-            max_peri = peri;
+        
+        if approx.rows() == 4 && perimeter > max_perimeter {
+            corner_pts = approx;
+            max_perimeter = perimeter;
         }
     }
 
-    if puzzle_cnt.rows() != 4 {
+    if corner_pts.rows() != 4 {
         panic!("Could not find puzzle");
     }
 
-    let puzzle = four_point_transform(&img, &puzzle_cnt);
+    let puzzle = four_point_transform(&img, &corner_pts);
 
     Some(puzzle)
 }
 
 fn extract_digit(cell: &Mat) -> Option<Mat> {
     let thresh = clear_border(cell);
-    let mut cnts = VectorOfVectorOfPoint::new();
+    let mut pts = VectorOfVectorOfPoint::new();
     let ret = find_contours(&thresh, 
-                  &mut cnts, 
+                  &mut pts, 
                   RETR_EXTERNAL, 
                   CHAIN_APPROX_SIMPLE, 
                   Point::new(0, 0));
-    if ret.is_err() || cnts.len() == 0 {
+    if ret.is_err() || pts.len() == 0 {
         return None;
     }
     return Some(thresh);
